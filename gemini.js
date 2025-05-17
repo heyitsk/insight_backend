@@ -1,12 +1,9 @@
-// import { GoogleGenAI } from "@google/genai";
-// import dotenv from "dotenv";
-// dotenv.config();
 const { GoogleGenAI } = require("@google/genai");
 require("dotenv").config();
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-async function askGemini(prompt) {
+async function askGeminiSQL(prompt) {
   try {
     const model = await genAI.models.generateContent({
       model: "gemini-2.5-flash-preview-04-17",
@@ -22,15 +19,24 @@ async function askGemini(prompt) {
     }
     return model.text;
   } catch (error) {
-    console.error("Gemini error:", error);
+    console.error("Gemini SQL error:", error);
     return `ERROR: ${error.message}`;
   }
 }
 
-//testing function
-// async function askGemini(prompt) {
-//   //   console.log("Mocked Gemini prompt:", prompt);
-//   return "SELECT * FROM customer1;"; // or any static SQL/query
-// }
-// await askGemini();
-module.exports = { askGemini };
+async function askGeminiExplanation(prompt) {
+  try {
+    const model = await genAI.models.generateContent({
+      model: "gemini-2.5-flash-preview-04-17",
+      contents: prompt,
+    });
+
+    console.log("raw response", model.text);
+    return model.text; // return full explanation + JSON block
+  } catch (error) {
+    console.error("Gemini explain error:", error);
+    return `ERROR: ${error.message}`;
+  }
+}
+
+module.exports = { askGeminiSQL, askGeminiExplanation };
