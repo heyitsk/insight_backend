@@ -6,21 +6,16 @@ const { runSQLQuery } = require("./queryEngine");
 const { buildSchemaInfo } = require("./schemaBuilder");
 const { testDatabaseConnection } = require("./connectDb");
 const { createPool, getPool, hasPool } = require("./dbManager");
+const { askGeminiSQL, askGeminiExplanation } = require("./gemini");
 
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: "http://localhost:5174" }));
 
 app.use(bodyParser.json());
-
-// TEXTUAL schema passed to Gemini
-// const schemaInfo = `
-// Tables:
-// - customers(id, name, email)
-// - orders(id, customer_id, product, amount, date)
 
 app.post("/ask", async (req, res) => {
   const userQuestion = req.body.question;
@@ -40,13 +35,13 @@ app.post("/ask", async (req, res) => {
   try {
     // STEP 1: Ask Gemini to convert question to SQ
     const schemaInfo = await buildSchemaInfo(pool);
-    console.log("sechaminfo", schemaInfo);
+    // console.log("sechaminfo", schemaInfo);
 
     const sqlPrompt = `Given this database schema:\n${schemaInfo}\nConvert the following natural language question into a SQL query:\n"${userQuestion}"\nOnly return the SQL code.`;
-    const sqlQuery = await askGemini(sqlPrompt);
-    console.log("Generated SQL:", sqlQuery);
+    const sqlQuery = await askGeminiSQL(sqlPrompt);
+    // console.log("Generated SQL:", sqlQuery);
 
-    console.log("Pool exists:", !!pool);
+    // console.log("Pool exists:", !!pool);
 
     // STEP 2: Run the SQL
     const dbResult = await pool.query(sqlQuery);
@@ -57,16 +52,50 @@ app.post("/ask", async (req, res) => {
     }
 
     // STEP 3: Ask Gemini to explain results
-    const explainPrompt = `Here is the data: ${JSON.stringify(
-      dbRows
-    )}\nProvide a business explanation in simple language in about 50 words and suggest a chart type in maximum 4 words.`;
-    const explanation = await askGemini(explainPrompt);
+    const explainPrompt = `
+Here is the data: 
+${JSON.stringify(dbRows, null, 2)}
 
+Please do the following:
+1. Write a simple business explanation of what this data shows (in plain English).
+2. Based on the structure and meaning of this data, suggest the most appropriate chart type to visualize it, and return a JSON object **inside a \`\`\`json block** like:
+\`\`\`json
+{
+  "type": "chart_type_here",
+  "x": "column_for_x_axis",
+  "y": "column_for_y_axis"
+}
+\`\`\`
+
+ONLY put the JSON inside the code block at the end.
+`;
+
+    const explanation = await askGeminiExplanation(explainPrompt);
+    let explanationText = explanation
+      .replace(/^1\.\s*\*\*(.*?)\*\*\s*/gm, "") // Removes markdown-style heading
+      .replace(/\*\*/g, "") // Removes all bold markers
+      .replace(/^\d+\.\s*/gm, "") // Removes numbered points if needed
+      .trim();
+    console.log("raw response", explanationText);
+
+    const match = explanationText.match(/```json([\s\S]*?)```/i);
+    let chartInfo = null;
+    if (match) {
+      try {
+        chartInfo = JSON.parse(match[1].trim());
+        explanationText = explanationText.replace(match[0], "").trim(); // Removes the JSON part
+        console.log("Final explanation text:", explanationText);
+      } catch (e) {
+        console.warn("Invalid chart JSON from Gemini.");
+        console.log(e);
+      }
+    }
     // Final response
     res.json({
       sql: sqlQuery,
       data: dbRows,
-      answer: explanation,
+      answer: explanationText,
+      chart: chartInfo,
     });
   } catch (err) {
     console.log(err);
