@@ -20,6 +20,7 @@ async function askGemini(prompt) {
       console.log("Extracted SQL:", sql);
       return sql;
     }
+    return model.text;
   } catch (error) {
     console.error("Gemini error:", error);
     return `ERROR: ${error.message}`;

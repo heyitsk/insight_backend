@@ -21,10 +21,9 @@ app.use(bodyParser.json());
 // Tables:
 // - customers(id, name, email)
 // - orders(id, customer_id, product, amount, date)
-// `;
 
 app.post("/ask", async (req, res) => {
-  const userQuestion = "get all customers";
+  const userQuestion = req.body.question;
   const sessionId = req.body.sessionId;
   if (!userQuestion) {
     return res.status(400).json({ error: "Missing question" });
@@ -60,7 +59,7 @@ app.post("/ask", async (req, res) => {
     // STEP 3: Ask Gemini to explain results
     const explainPrompt = `Here is the data: ${JSON.stringify(
       dbRows
-    )}\nProvide a business explanation in simple language and suggest a chart type.`;
+    )}\nProvide a business explanation in simple language in about 50 words and suggest a chart type in maximum 4 words.`;
     const explanation = await askGemini(explainPrompt);
 
     // Final response
