@@ -1,13 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const { askGemini } = require("./gemini");
-const { runSQLQuery } = require("./queryEngine");
-const { buildSchemaInfo } = require("./schemaBuilder");
-const { testDatabaseConnection } = require("./connectDb");
-const { createPool, getPool, hasPool } = require("./dbManager");
-const { askGeminiSQL, askGeminiExplanation } = require("./gemini");
-
+const { buildSchemaInfo } = require("./utils/schemaBuilder");
+const { createPool, getPool, hasPool } = require("./services/dbManager");
+const { askGeminiSQL, askGeminiExplanation } = require("./controllers/gemini");
+const { extractChartType } = require("./utils/extractChartType");
 require("dotenv").config();
 
 const app = express();
@@ -15,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "https://insight-frontend-dusky.vercel.app",
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );
@@ -25,6 +22,7 @@ app.use(bodyParser.json());
 app.post("/ask", async (req, res) => {
   const userQuestion = req.body.question;
   const sessionId = req.body.sessionId;
+  const userSpecifiedType = extractChartType(userQuestion);
   if (!userQuestion) {
     return res.status(400).json({ error: "Missing question" });
   }
@@ -61,9 +59,17 @@ app.post("/ask", async (req, res) => {
 Here is the data: 
 ${JSON.stringify(dbRows, null, 2)}
 
+User's original question: "${userQuestion}"
+
 Please do the following:
 1. Write a simple business explanation of what this data shows (in plain English).
-2. Based on the structure and meaning of this data, suggest the most appropriate chart type to visualize it, and return a JSON object **inside a \`\`\`json block** like:
+2. Suggest the best chart type to visualize it. ${
+      userSpecifiedType
+        ? `The user explicitly mentioned they want a "${userSpecifiedType}" chart, so use that.`
+        : "Choose the most suitable chart based on the data."
+    }
+
+Return the result as a JSON object inside a \`\`\`json block like:
 \`\`\`json
 {
   "type": "chart_type_here",
@@ -72,7 +78,7 @@ Please do the following:
 }
 \`\`\`
 
-ONLY put the JSON inside the code block at the end.
+ONLY include the JSON at the end inside the code block.
 `;
 
     const explanation = await askGeminiExplanation(explainPrompt);
