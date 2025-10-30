@@ -1,4 +1,4 @@
-// dbManager.js
+// config/db.js
 const { Pool } = require("pg");
 
 // In-memory store: sessionId → Pool

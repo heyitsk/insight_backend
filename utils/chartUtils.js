@@ -11,6 +11,7 @@ function extractChartType(userPrompt) {
     "table",
     "list",
   ];
+  const otherFormats = ["table", "list"];
   const lowerPrompt = userPrompt.toLowerCase();
   for (const type of types) {
     if (lowerPrompt.includes(`${type} chart`) || lowerPrompt.includes(type)) {
