@@ -8,7 +8,7 @@ const {
   generateExplorationSuggestions,
   validateAndImproveSQL,
 } = require("../services/geminiService");
-const { extractChartType } = require("../utils/chartUtils");
+const { getChartRecommendation } = require("../services/chartAnalyzer");
 const {
   getChatHistory,
   updateChatHistory,
@@ -18,7 +18,6 @@ const {
 async function ask(req, res, next) {
   const userQuestion = req.body.question;
   const sessionId = req.body.sessionId;
-  const userSpecifiedType = extractChartType(userQuestion);
   if (!userQuestion) {
     return res.status(400).json({ error: "Missing question" });
   }
@@ -118,7 +117,11 @@ If the question refers to previous results or uses pronouns like "that", "those"
       });
     }
 
-    // STEP 3: Ask Gemini to explain results
+    // STEP 3: Get intelligent chart recommendation
+    const chartRecommendation = getChartRecommendation(dbRows, sqlQuery);
+    console.log('Chart recommendation:', chartRecommendation);
+
+    // STEP 4: Ask Gemini to explain results (no chart recommendation needed)
     const explainPrompt = `
     You are a professional data analyst having a conversation with a business user.
     
@@ -138,26 +141,17 @@ If the question refers to previous results or uses pronouns like "that", "those"
     
     Please provide:
     1. A conversational business explanation of these results
-    2. Key insights and what they mean for the business
-    3. Appropriate chart recommendation for visualization
-    4. Reference previous conversation if relevant
-    
-    ${
-      userSpecifiedType
-        ? `User specifically requested a "${userSpecifiedType}" chart.`
-        : ""
-    }
+    2. Key business insights and what they mean
+    3. Reference previous conversation if relevant
     
     Format your response as JSON:
     \`\`\`json
     {
       "response": "Your conversational business explanation here. Be specific about the numbers and insights.",
-      "type": "${userSpecifiedType || "recommended_chart_type"}",
-      "x": "column_name_for_x_axis",
-      "y": "column_name_for_y_axis",
       "insights": [
         "Key insight 1",
-        "Key insight 2"
+        "Key insight 2",
+        "Key insight 3"
       ]
     }
     \`\`\`
@@ -203,13 +197,16 @@ If the question refers to previous results or uses pronouns like "that", "those"
         "What are the key drivers behind these results?",
       ];
     }
-    // Final response
+    // Final response with intelligent chart
     const responseData = {
       sql: sqlQuery,
       data: dbRows,
-      answer: explanationText,
-      chart: chartInfo,
-      insights: chartInfo ? chartInfo.insights : [],
+      answer: chartInfo?.response || explanationText,
+      chart: {
+        ...chartRecommendation.chartConfig,
+        response: chartInfo?.response || explanationText,
+      },
+      insights: chartInfo?.insights || [],
       suggestedQuestions: suggestedQuestions,
     };
     updateChatHistory(sessionId, userQuestion, responseData);

@@ -1,7 +1,7 @@
-const { GoogleGenAI } = require("@google/genai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 require("dotenv").config();
 
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function askGeminiSQL(prompt) {
   try {
@@ -20,19 +20,18 @@ async function askGeminiSQL(prompt) {
     ${prompt}
     
     Return only the SQL query:`;
-    const model = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
-      contents: enhancedPrompt,
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(enhancedPrompt);
+    const text = result.response.text();
 
-    console.log("initial response", model.text);
-    const match = model.text.match(/```(?:sql)?\s*([\s\S]*?)\s*```/i);
+    console.log("initial response", text);
+    const match = text.match(/```(?:sql)?\s*([\s\S]*?)\s*```/i);
     if (match) {
       const sql = match[1].trim();
       console.log("Extracted SQL:", sql);
       return sql;
     }
-    return model.text;
+    return text;
   } catch (error) {
     console.error("Gemini SQL error:", error);
     return `ERROR: ${error.message}`;
@@ -41,13 +40,12 @@ async function askGeminiSQL(prompt) {
 
 async function askGeminiExplanation(prompt) {
   try {
-    const model = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
-      contents: prompt,
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    console.log("raw response", model.text);
-    return model.text; // return full explanation + JSON block
+    console.log("raw response", text);
+    return text; // return full explanation + JSON block
   } catch (error) {
     console.error("Gemini explaination error:", error);
     return `ERROR: ${error.message}`;
@@ -75,15 +73,14 @@ async function generateFollowUpQuestions(dataContext, conversationHistory) {
     ["Question 1", "Question 2", "Question 3"]
     `;
 
-    const model = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
-      contents: prompt,
-    });
-    console.log("follow up questions: ", model.text);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    console.log("follow up questions: ", text);
 
     // Try to parse JSON response
     try {
-      const jsonMatch = model.text.match(/\[([\s\S]*?)\]/);
+      const jsonMatch = text.match(/\[([\s\S]*?)\]/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
       }
@@ -128,15 +125,14 @@ Generate questions covering different analytical approaches:
 Return ONLY a JSON array of 5 questions:
 ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]
 `;
-    const model = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
-      contents: enhancedPrompt,
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    console.log("exploration suggestions: ", model.text);
+    console.log("exploration suggestions: ", text);
 
     try {
-      const jsonMatch = model.text.match(/\[([\s\S]*?)\]/);
+      const jsonMatch = text.match(/\[([\s\S]*?)\]/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
       }
@@ -190,15 +186,14 @@ async function validateAndImproveSQL(
     
     Return ONLY the corrected SQL query:
     `;
-    const model = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
-      contents: enhancedPrompt,
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    console.log("improve sql: ", model.text);
+    console.log("improve sql: ", text);
 
     // Extract SQL from response
-    const codeBlockMatch = model.text.match(/```(?:sql)?\s*([\s\S]*?)\s*```/i);
+    const codeBlockMatch = text.match(/```(?:sql)?\s*([\s\S]*?)\s*```/i);
     if (codeBlockMatch) {
       return codeBlockMatch[1].trim();
     }

@@ -8,6 +8,12 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Validate required environment variables
+if (!process.env.GEMINI_API_KEY) {
+  console.error("❌ ERROR: GEMINI_API_KEY not set in .env file");
+  process.exit(1);
+}
+
 app.use(
   cors({
     origin: "http://localhost:5173",
